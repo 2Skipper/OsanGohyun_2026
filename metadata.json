@@ -1,0 +1,8 @@
+{
+  "name": "순환보직 관리 시스템 (Job Rotation Manager)",
+  "description": "Tailwind CSS와 Firebase v9/v10 SDK 기반의 순환보직 관리 SPA 애플리케이션 및 단일 HTML 스켈레톤 코드",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>순환보직 관리 시스템 - 직원 경력 정보 및 배점 산출 SPA</title>
+  
+  <!-- 1. Tailwind CSS CDN 로드 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              800: '#3730a3',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- 웹 폰트 (Pretendard) 로드 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <style>
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    }
+    .view-section {
+      display: none;
+    }
+    .view-section.active {
+      display: block;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+  <!-- [상단 헤더] -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="ViewController.navigate('login')">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-md shadow-brand-500/20">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+        </div>
+        <div>
+          <span class="text-lg font-bold text-slate-900 tracking-tight">순환보직 평정 시스템</span>
+          <span class="hidden sm:inline-block ml-2 px-2 py-0.5 text-xs font-semibold bg-brand-50 text-brand-600 rounded-full border border-brand-200">
+            경력 배점 평가
+          </span>
+        </div>
+      </div>
+
+      <nav id="nav-controls" class="flex items-center space-x-1 sm:space-x-2">
+        <button id="nav-btn-login" onclick="ViewController.navigate('login')" 
+          class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:text-brand-600 hover:bg-slate-100 transition-colors">
+          로그인 / 가입
+        </button>
+        <button id="nav-btn-career" onclick="ViewController.navigate('career')" 
+          class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:text-brand-600 hover:bg-slate-100 transition-colors">
+          경력 정보 및 배점 입력
+        </button>
+        <button id="nav-btn-admin" onclick="ViewController.navigate('admin')" 
+          class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:text-brand-600 hover:bg-slate-100 transition-colors">
+          관리자 대시보드
+        </button>
+      </nav>
+
+      <div class="flex items-center space-x-3">
+        <div id="user-badge" class="hidden items-center space-x-2 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+          <span id="user-name-display" class="text-xs font-semibold text-slate-700">홍길동 (2학년 3반)</span>
+          <button onclick="AuthService.handleSignOut()" class="text-xs text-rose-500 hover:underline font-semibold ml-1">
+            로그아웃
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 알림 토스트 -->
+  <div id="toast-container" class="fixed top-20 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <!-- [경고창 모달: 로그인을 해주세요] -->
+  <div id="warning-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 text-center space-y-4">
+      <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 mx-auto flex items-center justify-center font-bold">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      </div>
+      <div>
+        <h3 class="text-lg font-black text-slate-900">알림</h3>
+        <p id="warning-modal-text" class="text-sm font-bold text-amber-700 mt-2 bg-amber-50 py-2 px-3 rounded-xl border border-amber-200/60">
+          로그인을 해주세요.
+        </p>
+        <p class="text-xs text-slate-500 mt-2">
+          경력 정보 입력 및 관리자 기능은 로그인 완료 후 이용하실 수 있습니다.
+        </p>
+      </div>
+      <button onclick="closeWarningModal()" class="w-full py-3 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-bold rounded-xl text-sm transition shadow-md shadow-brand-500/25 flex items-center justify-center space-x-1.5 cursor-pointer">
+        <svg class="w-4 h-4 mr-1 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        <span>뒤로가기</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- [관리자 삭제 확인 모달: 평정 기록 및 로그인 계정 영구 삭제] -->
+  <div id="admin-delete-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+      <div class="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 mx-auto flex items-center justify-center font-bold">
+        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      </div>
+
+      <div class="text-center space-y-2">
+        <h3 class="text-lg font-black text-slate-900">
+          평정 데이터 & 로그인 정보 영구 삭제
+        </h3>
+        <p class="text-xs text-slate-500">
+          선택하신 교직원의 평정 기록과 로그인 계정 정보를 한꺼번에 삭제합니다.
+        </p>
+
+        <div class="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-left space-y-2 text-xs text-rose-950 mt-3">
+          <div class="flex justify-between items-center">
+            <span class="font-semibold text-rose-700">교직원 이름:</span>
+            <span id="delete-target-name" class="font-bold text-slate-900 text-sm">홍길동</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="font-semibold text-rose-700">소속(학년/반):</span>
+            <span id="delete-target-aff" class="font-bold text-slate-800">2학년 3반</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="font-semibold text-rose-700">총 배점 점수:</span>
+            <span id="delete-target-score" class="font-black text-rose-600">75점</span>
+          </div>
+          <div class="pt-2 border-t border-rose-200/80 text-[11px] text-rose-700 font-medium leading-relaxed">
+            ⚠️ <strong>주의:</strong> 삭제 실행 시 Firestore의 <code class="bg-white px-1 py-0.5 rounded border border-rose-200 font-bold">rotation_records</code> 평정 데이터뿐만 아니라 <code class="bg-white px-1 py-0.5 rounded border border-rose-200 font-bold">users</code> 로그인 계정 정보까지 한꺼번에 완전 삭제되며 복구할 수 없습니다.
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 pt-2">
+        <button type="button" onclick="CareerScoreApp.closeDeleteModal()" class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer">
+          취소
+        </button>
+        <button type="button" onclick="CareerScoreApp.executeDelete()" class="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs transition shadow-md shadow-rose-500/25 flex items-center justify-center space-x-1.5 cursor-pointer">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+          <span>영구 삭제 실행</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- [MODAL: 관리자 비밀번호 변경] -->
+  <div id="admin-pw-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-4">
+      <div class="flex justify-between items-start">
+        <div class="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center shadow-inner">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+        </div>
+        <button type="button" onclick="CareerScoreApp.closePasswordModal()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition cursor-pointer">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
+
+      <div>
+        <h3 class="text-lg font-black text-slate-900">관리자 비밀번호 변경</h3>
+        <p class="text-xs text-slate-500 mt-1 leading-relaxed">
+          현재 관리자 비밀번호를 확인한 후, 새로운 비밀번호를 2번 반복하여 입력해 주세요.
+        </p>
+      </div>
+
+      <div id="pw-error-box" class="hidden p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-center space-x-2">
+        <span id="pw-error-msg"></span>
+      </div>
+      <div id="pw-success-box" class="hidden p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-700 flex items-center space-x-2">
+        <span id="pw-success-msg"></span>
+      </div>
+
+      <form onsubmit="CareerScoreApp.submitChangePassword(event)" class="space-y-3.5 pt-1">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">
+            이전 비밀번호 <span class="text-rose-500">*</span>
+          </label>
+          <input type="password" id="pw-current" required placeholder="현재 관리자 비밀번호를 입력하세요"
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-hidden transition" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">
+            새로운 비밀번호 <span class="text-rose-500">*</span>
+          </label>
+          <input type="password" id="pw-new" required placeholder="새로운 비밀번호를 입력하세요 (4자 이상)"
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-hidden transition" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">
+            새로운 비밀번호 확인 <span class="text-rose-500">*</span>
+          </label>
+          <input type="password" id="pw-new-confirm" required placeholder="새로운 비밀번호를 한 번 더 입력하세요"
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:outline-hidden transition" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-3">
+          <button type="button" onclick="CareerScoreApp.closePasswordModal()"
+            class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer">
+            취소
+          </button>
+          <button type="submit"
+            class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white font-black rounded-xl text-xs transition shadow-md shadow-purple-500/25 flex items-center justify-center space-x-1.5 cursor-pointer">
+            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+            <span>변경하기</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+
+    <!-- [VIEW 1] 로그인 / 회원가입 화면 -->
+    <section id="view-login" class="view-section active">
+      <div class="max-w-md mx-auto bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+        
+        <div class="bg-gradient-to-r from-brand-600 to-indigo-600 p-6 text-white text-center">
+          <div class="w-14 h-14 bg-white/20 backdrop-blur-xs rounded-2xl mx-auto flex items-center justify-center mb-3">
+            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 class="text-2xl font-bold" id="auth-title">순환보직 평정 시스템 로그인</h2>
+          <p class="text-brand-100 text-xs mt-1" id="auth-subtitle">이름과 학년/반(소속)으로 로그인하세요.</p>
+        </div>
+
+        <!-- 탭 전환 -->
+        <div class="grid grid-cols-2 p-1.5 bg-slate-100 border-b border-slate-200">
+          <button id="tab-login" onclick="AuthService.switchAuthMode('login')" 
+            class="py-2 text-xs font-bold rounded-lg transition-all bg-white text-brand-600 shadow-xs">
+            로그인
+          </button>
+          <button id="tab-signup" onclick="AuthService.switchAuthMode('signup')" 
+            class="py-2 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800">
+            신규 회원가입
+          </button>
+        </div>
+
+        <form id="form-auth" onsubmit="AuthService.handleSubmit(event)" class="p-6 space-y-4">
+          <!-- 1. 이름 -->
+          <div>
+            <label for="auth-name" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              이름 <span class="text-rose-500">*</span>
+            </label>
+            <input type="text" id="auth-name" oninput="AuthService.updateLoginButtonState()" placeholder="이름을 입력하세요 (예: 홍길동)" 
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-brand-500 text-sm transition" />
+          </div>
+
+          <!-- 2. 학년/반(소속) -->
+          <div>
+            <label for="auth-affiliation" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              학년 / 반 (소속) <span class="text-rose-500">*</span>
+            </label>
+            <input type="text" id="auth-affiliation" oninput="AuthService.updateLoginButtonState()" placeholder="소속을 입력하세요 (예: 교무부 / admin은 비워둘 시 자동 적용)" 
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-brand-500 text-sm transition" />
+          </div>
+
+          <!-- 3. 비밀번호 -->
+          <div>
+            <label for="auth-password" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              비밀번호 <span class="text-rose-500">*</span>
+            </label>
+            <input type="password" id="auth-password" oninput="AuthService.updateLoginButtonState()" placeholder="비밀번호를 입력하세요" 
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-brand-500 text-sm transition" />
+          </div>
+
+          <!-- 회원가입 전용 비밀번호 확인 -->
+          <div id="field-password-confirm" class="hidden">
+            <label for="auth-password-confirm" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+              비밀번호 확인 <span class="text-rose-500">*</span>
+            </label>
+            <input type="password" id="auth-password-confirm" oninput="AuthService.updateLoginButtonState()" placeholder="비밀번호를 한 번 더 입력하세요" 
+              class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-brand-500 text-sm transition" />
+          </div>
+
+          <!-- 관리자 체크박스 -->
+          <div class="py-0.5">
+            <label class="relative flex items-center p-2.5 rounded-xl border border-slate-200/80 bg-slate-50 hover:bg-slate-100 cursor-pointer select-none transition">
+              <input type="checkbox" id="auth-is-admin" class="w-4 h-4 text-brand-600 rounded-sm border-slate-300 focus:ring-brand-500 cursor-pointer" />
+              <div class="ml-2.5">
+                <span class="text-xs font-bold text-slate-800 block" id="admin-chk-label">관리자(교사 / 인사담당자)로 로그인</span>
+                <span class="text-[10px] text-slate-400 block">아이디: admin, 비밀번호: 112233 (초기값) 입력 시 관리자 대시보드로 이동</span>
+              </div>
+            </label>
+          </div>
+
+          <!-- =========================================================================
+               [비밀번호 입력창 바로 아래 직관적인 로그인 및 가입 버튼 배치]
+               - 이름, 학년/반, 비밀번호가 모두 입력되면 '로그인' 텍스트가 진하게 표시됨
+          ========================================================================= -->
+          <div id="btn-login-single" class="pt-1">
+            <button type="submit" id="btn-login-submit"
+              class="w-full py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold border border-slate-300 rounded-xl transition flex items-center justify-center space-x-2 text-sm cursor-pointer">
+              <span id="login-text" class="font-bold text-slate-700 text-sm">로그인</span>
+              <svg class="w-4 h-4 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+            <p id="login-guide-hint" class="text-[11px] text-center text-slate-500 mt-1.5 font-medium">
+              ※ 이름, 학년/반(소속), 비밀번호를 모두 입력하면 로그인 버튼이 활성화됩니다.
+            </p>
+          </div>
+
+          <!-- 회원가입 모드 버튼 그룹 -->
+          <div id="btn-signup-group" class="hidden grid grid-cols-2 gap-3 pt-1">
+            <button type="button" onclick="AuthService.switchAuthMode('login')"
+              class="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition flex items-center justify-center text-sm cursor-pointer">
+              취소
+            </button>
+            <button type="submit" id="btn-signup-submit"
+              class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl transition shadow-md shadow-indigo-500/25 flex items-center justify-center space-x-1.5 text-sm cursor-pointer select-none">
+              <span id="signup-text" class="text-white font-black text-sm">가입하기</span>
+              <svg id="signup-arrow" class="w-4 h-4 text-white ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </section>
+
+    <!-- [VIEW 2] 직원 경력 정보 입력 및 배점 계산 페이지 -->
+    <section id="view-career" class="view-section">
+      <div class="max-w-4xl mx-auto space-y-8">
+        
+        <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="px-2.5 py-0.5 text-xs font-bold rounded-full bg-brand-50 text-brand-700 border border-brand-200">
+                100점 만점 평정 기준
+              </span>
+              <span class="text-xs text-slate-400">엑셀 시트 연동 가능</span>
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mt-1">직원 경력 정보 입력 및 순환 배점 산출</h2>
+            <p class="text-xs text-slate-500 mt-1">
+              나이, 재직기간, 총경력을 입력하면 실시간 배점이 계산되며, 저장 시 평정 데이터베이스에 등록됩니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100 bg-slate-50/50">
+            <h3 class="font-bold text-slate-900 text-base flex items-center">
+              <span class="w-2.5 h-2.5 rounded-full bg-brand-600 mr-2"></span>
+              경력 세부 사항 작성
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">수치를 입력하면 즉시 실시간 배점이 산출됩니다.</p>
+          </div>
+
+          <form id="form-career-score" onsubmit="CareerScoreApp.handleSaveRecord(event)" class="p-6 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label for="career-name" class="block text-xs font-bold text-slate-700 mb-1">
+                  이름 <span class="text-rose-500">*</span>
+                </label>
+                <input type="text" id="career-name" required placeholder="홍길동" 
+                  class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500" />
+              </div>
+
+              <div>
+                <label for="career-age" class="block text-xs font-bold text-slate-700 mb-1">
+                  나이 (만 세) <span class="text-rose-500">*</span>
+                </label>
+                <div class="relative">
+                  <input type="text" inputmode="numeric" id="career-age" required value="52" placeholder="예: 52"
+                    oninput="CareerScoreApp.handleLiveCalc()"
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 font-semibold" />
+                  <span class="absolute right-3.5 top-2.5 text-xs text-slate-400">세</span>
+                </div>
+                <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                  <span>55세↑(30점)</span>
+                  <span>50~54세(25점)</span>
+                  <span>45~49세(20점)</span>
+                  <span>40~44세(15점)</span>
+                  <span>40세↓(10점)</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="career-tenure" class="block text-xs font-bold text-slate-700 mb-1">
+                  본교/당사 재직기간 (년) <span class="text-rose-500">*</span>
+                </label>
+                <div class="relative">
+                  <input type="text" inputmode="decimal" id="career-tenure" required value="8.00" placeholder="예: 1.06 (1년 6개월)"
+                    oninput="CareerScoreApp.handleLiveCalc()"
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 font-semibold" />
+                  <span class="absolute right-3.5 top-2.5 text-xs text-slate-400">년</span>
+                </div>
+
+                <!-- [요구사항 핵심] 입력 예시 가이드 및 실시간 환산 -->
+                <div class="mt-1.5 bg-indigo-50/80 border border-indigo-100 rounded-lg p-2 text-xs space-y-1">
+                  <div class="text-indigo-900 font-semibold text-[11px] leading-relaxed">
+                    💡 <strong>입력예시:</strong> 1년 6개월은 <code class="bg-white px-1 py-0.5 rounded text-indigo-700 font-bold border border-indigo-200">1.06</code>, 2년 2개월은 <code className="bg-white px-1 py-0.5 rounded text-indigo-700 font-bold border border-indigo-200">2.02</code>, 2년 11개월은 <code class="bg-white px-1 py-0.5 rounded text-indigo-700 font-bold border border-indigo-200">2.11</code>로 직접 입력하세요.
+                  </div>
+                  <div class="text-[11px] text-indigo-700 flex items-center pt-0.5">
+                    <span class="font-bold mr-1.5">실시간 환산:</span>
+                    <span id="career-tenure-convert" class="bg-white px-2 py-0.5 rounded border border-indigo-200 font-black text-indigo-800">8년</span>
+                  </div>
+                </div>
+
+                <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                  <span>10년↑ (30점)</span>
+                  <span>5~9년 (20점)</span>
+                  <span>1~4년 (10점)</span>
+                  <span>1년미만 (0점)</span>
+                </div>
+              </div>
+
+              <div>
+                <label for="career-total-exp" class="block text-xs font-bold text-slate-700 mb-1">
+                  총 경력 기간 (년) <span class="text-rose-500">*</span>
+                </label>
+                <div class="relative">
+                  <input type="text" inputmode="decimal" id="career-total-exp" required value="16.00" placeholder="예: 2.11 (2년 11개월)"
+                    oninput="CareerScoreApp.handleLiveCalc()"
+                    class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 font-semibold" />
+                  <span class="absolute right-3.5 top-2.5 text-xs text-slate-400">년</span>
+                </div>
+
+                <!-- [요구사항 핵심] 입력 예시 가이드 및 실시간 환산 -->
+                <div class="mt-1.5 bg-purple-50/80 border border-purple-100 rounded-lg p-2 text-xs space-y-1">
+                  <div class="text-purple-900 font-semibold text-[11px] leading-relaxed">
+                    💡 <strong>입력예시:</strong> 1년 6개월은 <code class="bg-white px-1 py-0.5 rounded text-purple-700 font-bold border border-purple-200">1.06</code>, 2년 2개월은 <code class="bg-white px-1 py-0.5 rounded text-purple-700 font-bold border border-purple-200">2.02</code>, 2년 11개월은 <code class="bg-white px-1 py-0.5 rounded text-purple-700 font-bold border border-purple-200">2.11</code>로 직접 입력하세요.
+                  </div>
+                  <div class="text-[11px] text-purple-700 flex items-center pt-0.5">
+                    <span class="font-bold mr-1.5">실시간 환산:</span>
+                    <span id="career-exp-convert" class="bg-white px-2 py-0.5 rounded border border-purple-200 font-black text-purple-800">16년</span>
+                  </div>
+                </div>
+
+                <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                  <span>20년↑ (40점)</span>
+                  <span>10~19년 (30점)</span>
+                  <span>5~9년 (20점)</span>
+                  <span>5년↓ (10점)</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label for="career-duties" class="block text-xs font-bold text-slate-700 mb-1">
+                올해 나의 업무 (담당 직무 및 주요 과업) <span class="text-rose-500">*</span>
+              </label>
+              <textarea id="career-duties" rows="3" required placeholder="올해 담당하고 있는 주요 업무, 수업, 담당 프로젝트 등을 구체적으로 서술하세요." 
+                class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-brand-500">영업기획팀 파이프라인 관리 및 2학년 취업 진로 상담 전담, 사내 데이터 대시보드 프로젝트 주도</textarea>
+            </div>
+
+            <div class="grid grid-cols-3 gap-3 text-center bg-slate-50 p-4 rounded-xl border border-slate-200">
+              <div class="bg-white p-3 rounded-lg border border-slate-100">
+                <span class="text-xs text-slate-500 block">나이 배점 (30점 만점)</span>
+                <span class="text-lg font-bold text-brand-600" id="live-age-score">25점</span>
+              </div>
+              <div class="bg-white p-3 rounded-lg border border-slate-100">
+                <span class="text-xs text-slate-500 block">재직기간 배점 (30점 만점)</span>
+                <span class="text-lg font-bold text-indigo-600" id="live-tenure-score">20점</span>
+              </div>
+              <div class="bg-white p-3 rounded-lg border border-slate-100">
+                <span class="text-xs text-slate-500 block">총경력 배점 (40점 만점)</span>
+                <span class="text-lg font-bold text-purple-600" id="live-exp-score">30점</span>
+              </div>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+              <button type="submit" class="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-semibold shadow-md">
+                저장하기 (Firestore rotation_records)
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div id="result-score-container" class="bg-gradient-to-r from-brand-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl flex items-center justify-between">
+          <div>
+            <span class="px-2.5 py-0.5 rounded-full bg-white/20 text-xs font-semibold">Firestore 저장 완료</span>
+            <h3 class="text-2xl font-bold mt-1"><span id="result-user-name">홍길동</span> 님의 순환보직 평정 결과</h3>
+            <p class="text-xs text-brand-100 mt-1" id="result-timestamp">평정 일시: 2026-10-28 19:40</p>
+          </div>
+          <div class="bg-white/15 backdrop-blur-md rounded-2xl p-4 border border-white/20 text-center min-w-[180px]">
+            <span class="text-xs text-brand-100">나의 총 배점점수</span>
+            <div class="text-5xl font-black mt-1" id="result-total-score">75</div>
+            <span class="text-xs text-brand-200">/ 100점 만점</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- [VIEW 3] 관리자 대시보드 -->
+    <section id="view-admin" class="view-section">
+      <div class="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+        <div class="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">직원 경력 정보 및 순환 배점 집계표 (rotation_records)</h3>
+            <p class="text-xs text-slate-500">배점 기준 내림차순 정렬</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="CareerScoreApp.openPasswordModal()"
+              class="px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 shadow-xs cursor-pointer">
+              <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+              <span>관리자 비밀번호 변경</span>
+            </button>
+            <button id="btn-admin-delete" onclick="CareerScoreApp.handleDeleteSelected()" disabled
+              class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60">
+              <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              <span>선택 삭제 (로그인 계정 포함)</span>
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-50 text-slate-500 text-xs uppercase border-b border-slate-200">
+              <tr>
+                <th class="px-3.5 py-3 text-center w-12">선택</th>
+                <th class="px-5 py-3">순위</th>
+                <th class="px-5 py-3">이름 / 소속</th>
+                <th class="px-5 py-3">경력 스펙</th>
+                <th class="px-5 py-3">배점 내역</th>
+                <th class="px-5 py-3 text-center">총 배점점수</th>
+                <th class="px-5 py-3">올해 업무</th>
+                <th class="px-5 py-3 text-right">관리 작업</th>
+              </tr>
+            </thead>
+            <tbody id="admin-records-table-body" class="divide-y divide-slate-100">
+              <!-- JS 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    let app = null, auth = null, db = null;
+    const isFirebaseConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY" && Boolean(firebaseConfig.projectId);
+
+    if (isFirebaseConfigured) {
+      try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+      } catch (err) {
+        console.warn("Firebase 초기화 에러, Mock 모드로 진행:", err);
+      }
+    }
+
+    function calculateScore(age, tenure, totalExp) {
+      let ageScore = 10;
+      if (age >= 55) ageScore = 30;
+      else if (age >= 50) ageScore = 25;
+      else if (age >= 45) ageScore = 20;
+      else if (age >= 40) ageScore = 15;
+
+      let tenureScore = 0;
+      if (tenure >= 10) tenureScore = 30;
+      else if (tenure >= 5) tenureScore = 20;
+      else if (tenure >= 1) tenureScore = 10;
+
+      let expScore = 10;
+      if (totalExp >= 20) expScore = 40;
+      else if (totalExp >= 10) expScore = 30;
+      else if (totalExp >= 5) expScore = 20;
+
+      return {
+        ageScore,
+        tenureScore,
+        expScore,
+        totalScore: ageScore + tenureScore + expScore
+      };
+    }
+    window.calculateScore = calculateScore;
+
+    function formatYearMonthDisplay(val) {
+      if (val === undefined || val === null || val === '') return '';
+      const str = String(val).trim();
+      const num = parseFloat(str);
+      if (isNaN(num) || num < 0) return '';
+      const parts = str.split('.');
+      const years = parseInt(parts[0] || '0', 10);
+      if (parts.length < 2 || !parts[1]) return `${years}년`;
+      const monthStr = parts[1].padEnd(2, '0').slice(0, 2);
+      const months = parseInt(monthStr, 10);
+      if (months === 0) return `${years}년`;
+      return `${years}년 ${months}개월`;
+    }
+    window.formatYearMonthDisplay = formatYearMonthDisplay;
+
+    let mockRotationRecords = [
+      {
+        id: 'rec-001',
+        name: '박지원',
+        affiliation: '2학년 1반',
+        age: 56,
+        tenure: 12,
+        totalExp: 22,
+        currentDuties: '플랫폼 시스템 아키텍처 및 2학년 전산 실무 강의',
+        scoreBreakdown: { ageScore: 30, tenureScore: 30, expScore: 40, totalScore: 100, ageTier: '55세 이상', tenureTier: '10년 이상', expTier: '20년 이상' },
+        savedAt: '2026-10-27 15:30'
+      },
+      {
+        id: 'rec-002',
+        name: '홍길동',
+        affiliation: '2학년 3반',
+        age: 52,
+        tenure: 8,
+        totalExp: 16,
+        currentDuties: '영업기획팀 파이프라인 관리 및 2학년 취업 진로 상담 전담',
+        scoreBreakdown: { ageScore: 25, tenureScore: 20, expScore: 30, totalScore: 75, ageTier: '50~54세', tenureTier: '5~9년', expTier: '10~19년' },
+        savedAt: '2026-10-28 14:20'
+      },
+      {
+        id: 'rec-003',
+        name: '최영호',
+        affiliation: '1학년 4반',
+        age: 42,
+        tenure: 3,
+        totalExp: 8,
+        currentDuties: '디지털 마케팅 캠페인 운영 및 SNS 채널 관리',
+        scoreBreakdown: { ageScore: 15, tenureScore: 10, expScore: 20, totalScore: 45, ageTier: '40~44세', tenureTier: '1~4년', expTier: '5~9년' },
+        savedAt: '2026-10-28 11:10'
+      }
+    ];
+
+    let currentUser = null;
+
+    // 경고 모달 표시 함수
+    function showWarningModal(msg = '로그인을 해주세요.') {
+      document.getElementById('warning-modal-text').textContent = msg;
+      document.getElementById('warning-modal').classList.remove('hidden');
+    }
+    window.showWarningModal = showWarningModal;
+
+    function closeWarningModal() {
+      document.getElementById('warning-modal').classList.add('hidden');
+      ViewController.navigate('login');
+    }
+    window.closeWarningModal = closeWarningModal;
+
+    const ViewController = {
+      currentView: 'login',
+
+      init() {
+        this.updateNavUI();
+      },
+
+      navigate(viewName) {
+        // [네비게이션 가드] 미로그인 상태에서 다른 페이지 접근 시 경고창 표시
+        if (viewName !== 'login' && !currentUser) {
+          showWarningModal('로그인을 해주세요.');
+          return;
+        }
+
+        if (viewName === 'admin' && currentUser && currentUser.role !== 'admin') {
+          showWarningModal('관리자 권한이 필요합니다.');
+          return;
+        }
+
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        const target = document.getElementById(`view-${viewName}`);
+        if (target) {
+          target.classList.add('active');
+          this.currentView = viewName;
+          this.updateNavUI();
+
+          if (viewName === 'career') {
+            CareerScoreApp.handleLiveCalc();
+          } else if (viewName === 'admin') {
+            CareerScoreApp.renderAdminTable();
+          }
+        }
+      },
+
+      updateNavUI() {
+        ['login', 'career', 'admin'].forEach(v => {
+          const btn = document.getElementById(`nav-btn-${v}`);
+          if (!btn) return;
+          if (v === this.currentView) {
+            btn.className = "px-3.5 py-1.5 rounded-lg text-sm font-bold text-brand-600 bg-brand-50 border border-brand-200 transition-colors";
+          } else {
+            btn.className = "px-3.5 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:text-brand-600 hover:bg-slate-100 transition-colors";
+          }
+        });
+      }
+    };
+
+    let currentAuthMode = 'login';
+
+    const AuthService = {
+      updateLoginButtonState() {
+        const nameVal = document.getElementById('auth-name').value.trim();
+        const affVal = document.getElementById('auth-affiliation').value.trim();
+        const pwVal = document.getElementById('auth-password').value.trim();
+        const pwConfirmVal = (document.getElementById('auth-password-confirm')?.value || '').trim();
+        const btn = document.getElementById('btn-login-submit');
+        const textSpan = document.getElementById('login-text');
+        const hint = document.getElementById('login-guide-hint');
+
+        const isAdminTarget = nameVal.toLowerCase() === 'admin';
+        const isFilled = nameVal.length > 0 && (isAdminTarget || affVal.length > 0) && pwVal.length > 0;
+
+        if (btn && textSpan) {
+          if (isFilled) {
+            btn.className = "w-full py-3.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-black shadow-lg shadow-brand-500/30 scale-[1.01] rounded-xl transition flex items-center justify-center space-x-2 text-sm cursor-pointer";
+            textSpan.className = "font-black text-white text-base tracking-wider";
+            textSpan.textContent = "로그인";
+            if (hint) hint.classList.add('hidden');
+          } else {
+            btn.className = "w-full py-3.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold border border-slate-300 rounded-xl transition flex items-center justify-center space-x-2 text-sm cursor-pointer";
+            textSpan.className = "font-bold text-slate-700 text-sm";
+            textSpan.textContent = "로그인";
+            if (hint) hint.classList.remove('hidden');
+          }
+        }
+
+        // 회원가입 버튼 상태 동적 업데이트
+        const btnSignup = document.getElementById('btn-signup-submit');
+        const textSignup = document.getElementById('signup-text');
+        const arrowSignup = document.getElementById('signup-arrow');
+        const isSignupFilled = isFilled && pwConfirmVal.length > 0 && pwVal === pwConfirmVal;
+
+        if (btnSignup && textSignup) {
+          textSignup.textContent = "가입하기";
+          if (isSignupFilled) {
+            btnSignup.className = "w-full py-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black rounded-xl transition shadow-lg shadow-indigo-500/30 scale-[1.01] flex items-center justify-center space-x-1.5 text-sm cursor-pointer select-none";
+            textSignup.className = "text-white font-black text-sm tracking-wide";
+            if (arrowSignup) arrowSignup.className = "w-4 h-4 text-white ml-0.5";
+          } else {
+            btnSignup.className = "w-full py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold border border-slate-300 rounded-xl transition flex items-center justify-center space-x-1.5 text-sm cursor-pointer select-none";
+            textSignup.className = "text-slate-700 font-bold text-sm";
+            if (arrowSignup) arrowSignup.className = "w-4 h-4 text-slate-600 ml-0.5";
+          }
+        }
+      },
+
+      switchAuthMode(mode) {
+        currentAuthMode = mode;
+        const tabLogin = document.getElementById('tab-login');
+        const tabSignup = document.getElementById('tab-signup');
+        const title = document.getElementById('auth-title');
+        const subtitle = document.getElementById('auth-subtitle');
+        const pwConfirm = document.getElementById('field-password-confirm');
+        const pwConfirmInput = document.getElementById('auth-password-confirm');
+        const btnLogin = document.getElementById('btn-login-single');
+        const btnSignup = document.getElementById('btn-signup-group');
+        const adminChkLabel = document.getElementById('admin-chk-label');
+
+        if (mode === 'signup') {
+          tabSignup.className = "py-2 text-xs font-bold rounded-lg transition-all bg-white text-brand-600 shadow-xs";
+          tabLogin.className = "py-2 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
+          title.textContent = "순환보직 신규 회원가입";
+          subtitle.textContent = "새로운 계정 정보를 입력하여 회원가입을 완료하세요.";
+          pwConfirm.classList.remove('hidden');
+          pwConfirmInput.setAttribute('required', 'true');
+          adminChkLabel.textContent = "관리자(교사 / 인사담당자)로 가입";
+          btnLogin.classList.add('hidden');
+          btnSignup.classList.remove('hidden');
+        } else {
+          tabLogin.className = "py-2 text-xs font-bold rounded-lg transition-all bg-white text-brand-600 shadow-xs";
+          tabSignup.className = "py-2 text-xs font-bold rounded-lg transition-all text-slate-500 hover:text-slate-800";
+          title.textContent = "순환보직 평정 시스템 로그인";
+          subtitle.textContent = "이름과 학년/반(소속)으로 로그인하세요.";
+          pwConfirm.classList.add('hidden');
+          pwConfirmInput.removeAttribute('required');
+          pwConfirmInput.value = '';
+          adminChkLabel.textContent = "관리자(교사 / 인사담당자)로 로그인";
+          btnLogin.classList.remove('hidden');
+          btnSignup.classList.add('hidden');
+          this.updateLoginButtonState();
+        }
+      },
+
+      async handleSubmit(event) {
+        event.preventDefault();
+        const name = document.getElementById('auth-name').value.trim();
+        const affiliation = document.getElementById('auth-affiliation').value.trim();
+        const password = document.getElementById('auth-password').value;
+        const isAdminTarget = (name.toLowerCase() === 'admin');
+
+        // [미입력 시 경고창 노출: admin은 소속 생략 가능]
+        if (!name || (!isAdminTarget && !affiliation) || !password) {
+          showWarningModal('로그인을 해주세요.');
+          return;
+        }
+
+        if (currentAuthMode === 'signup') {
+          const pwConfirm = document.getElementById('auth-password-confirm').value;
+          if (password !== pwConfirm) {
+            showWarningModal("비밀번호와 비밀번호 확인이 일치하지 않습니다.");
+            return;
+          }
+        }
+
+        // [요구사항 핵심 2] 관리자 접속 조건: 아이디는 admin, 비밀번호는 112233 (또는 변경된 비밀번호)
+        const isTargetingAdmin = (name.toLowerCase() === 'admin') || isAdminCheckbox;
+        if (isTargetingAdmin) {
+          if (name.toLowerCase() !== 'admin') {
+            showWarningModal("관리자 로그인은 아이디(이름)가 'admin'이어야 합니다.");
+            return;
+          }
+          const activeAdminPw = localStorage.getItem('admin_password') || '112233';
+          if (password !== activeAdminPw) {
+            showWarningModal("관리자 비밀번호가 일치하지 않습니다.");
+            return;
+          }
+        }
+
+        const isAdmin = isTargetingAdmin;
+        const role = isAdmin ? 'admin' : 'employee';
+
+        currentUser = { name, affiliation: affiliation || (isAdmin ? '교무부 (인사담당)' : '소속 미정'), role };
+
+        const badge = document.getElementById('user-badge');
+        const nameDisplay = document.getElementById('user-name-display');
+        badge.classList.remove('hidden');
+        badge.classList.add('flex');
+        nameDisplay.textContent = `${name} (${currentUser.affiliation}) [${isAdmin ? '관리자' : '직원'}]`;
+
+        showToast(`${name}님 환영합니다!`, "success");
+        document.getElementById('career-name').value = name;
+
+        if (isAdmin) {
+          ViewController.navigate('admin');
+        } else {
+          ViewController.navigate('career');
+        }
+      },
+
+      handleSignOut() {
+        if (isFirebaseConfigured && auth) signOut(auth);
+        currentUser = null;
+        document.getElementById('user-badge').classList.add('hidden');
+        document.getElementById('user-badge').classList.remove('flex');
+        showToast("로그아웃되었습니다.", "info");
+        ViewController.navigate('login');
+      }
+    };
+
+    const CareerScoreApp = {
+      handleLiveCalc() {
+        const ageVal = document.getElementById('career-age').value;
+        const tenureVal = document.getElementById('career-tenure').value;
+        const totalExpVal = document.getElementById('career-total-exp').value;
+
+        const age = parseFloat(ageVal) || 0;
+        const tenure = parseFloat(tenureVal) || 0;
+        const totalExp = parseFloat(totalExpVal) || 0;
+
+        const result = calculateScore(age, tenure, totalExp);
+
+        document.getElementById('live-age-score').textContent = `${result.ageScore}점`;
+        document.getElementById('live-age-tier').textContent = `${result.ageTier} 구간`;
+
+        document.getElementById('live-tenure-score').textContent = `${result.tenureScore}점`;
+        document.getElementById('live-tenure-tier').textContent = `${result.tenureTier} 구간`;
+
+        document.getElementById('live-exp-score').textContent = `${result.expScore}점`;
+        document.getElementById('live-exp-tier').textContent = `${result.expTier} 구간`;
+
+        const tenureConv = document.getElementById('career-tenure-convert');
+        const expConv = document.getElementById('career-exp-convert');
+        if (tenureConv) tenureConv.textContent = formatYearMonthDisplay(tenureVal);
+        if (expConv) expConv.textContent = formatYearMonthDisplay(totalExpVal);
+
+        return result;
+      },
+
+      async handleSaveRecord(event) {
+        event.preventDefault();
+
+        const name = document.getElementById('career-name').value.trim() || (currentUser ? currentUser.name : '홍길동');
+        const affiliation = currentUser ? currentUser.affiliation : '2학년 3반';
+        const age = parseFloat(document.getElementById('career-age').value) || 0;
+        const tenure = parseFloat(document.getElementById('career-tenure').value) || 0;
+        const totalExp = parseFloat(document.getElementById('career-total-exp').value) || 0;
+        const currentDuties = document.getElementById('career-duties').value.trim();
+
+        const scoreResult = calculateScore(age, tenure, totalExp);
+
+        const recordDoc = {
+          name,
+          affiliation,
+          age,
+          tenure,
+          totalExp,
+          currentDuties,
+          scoreBreakdown: {
+            ageScore: scoreResult.ageScore,
+            tenureScore: scoreResult.tenureScore,
+            expScore: scoreResult.expScore,
+            totalScore: scoreResult.totalScore,
+            ageTier: scoreResult.ageTier,
+            tenureTier: scoreResult.tenureTier,
+            expTier: scoreResult.expTier
+          },
+          savedAt: new Date().toISOString().substring(0, 16).replace('T', ' ')
+        };
+
+        if (isFirebaseConfigured && db) {
+          try {
+            const docRef = await addDoc(collection(db, "rotation_records"), {
+              ...recordDoc,
+              createdAt: serverTimestamp()
+            });
+            recordDoc.id = docRef.id;
+            showToast("Firestore rotation_records에 저장되었습니다!", "success");
+          } catch (e) {
+            recordDoc.id = 'rec-' + Date.now();
+            showToast("로컬에 저장되었습니다.", "warning");
+          }
+        } else {
+          recordDoc.id = 'rec-' + Date.now();
+          showToast("경력 정보 및 배점이 저장되었습니다!", "success");
+        }
+
+        const existingIdx = mockRotationRecords.findIndex(r => r.name === name);
+        if (existingIdx >= 0) {
+          mockRotationRecords[existingIdx] = recordDoc;
+        } else {
+          mockRotationRecords.unshift(recordDoc);
+        }
+
+        this.displayResultCard(recordDoc);
+      },
+
+      displayResultCard(record) {
+        const container = document.getElementById('result-score-container');
+        document.getElementById('result-user-name').textContent = record.name;
+        document.getElementById('result-total-score').textContent = record.scoreBreakdown.totalScore;
+        document.getElementById('result-chip-age').textContent = `${record.scoreBreakdown.ageScore}점`;
+        document.getElementById('result-chip-tenure').textContent = `${record.scoreBreakdown.tenureScore}점`;
+        document.getElementById('result-chip-exp').textContent = `${record.scoreBreakdown.expScore}점`;
+        document.getElementById('result-timestamp').textContent = `평정 일시: ${record.savedAt}`;
+
+        const total = record.scoreBreakdown.totalScore;
+        const rankTierEl = document.getElementById('result-rank-tier');
+        if (total >= 80) {
+          rankTierEl.textContent = "★ 순환배치 1순위 (80점 이상 특우선군)";
+        } else if (total >= 60) {
+          rankTierEl.textContent = "● 순환배치 권장 대상 (60점 ~ 79점 일반순환군)";
+        } else {
+          rankTierEl.textContent = "○ 기본 검토 대상 (60점 미만 유예/잔류 검토군)";
+        }
+
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      },
+
+      selectedRecordId: null,
+      recordToDeleteId: null,
+
+      handleSelectRecord(id) {
+        this.selectedRecordId = id;
+        const btnDelete = document.getElementById('btn-admin-delete');
+        if (btnDelete) {
+          btnDelete.removeAttribute('disabled');
+          btnDelete.className = "px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-md shadow-rose-500/25";
+        }
+      },
+
+      handleDeleteSelected() {
+        if (!this.selectedRecordId) return;
+        this.openDeleteModal(this.selectedRecordId);
+      },
+
+      openDeleteModal(id) {
+        this.recordToDeleteId = id;
+        const rec = mockRotationRecords.find(r => r.id === id);
+        if (!rec) return;
+
+        document.getElementById('delete-target-name').textContent = rec.name;
+        document.getElementById('delete-target-aff').textContent = rec.affiliation;
+        document.getElementById('delete-target-score').textContent = `${rec.scoreBreakdown.totalScore}점`;
+        document.getElementById('admin-delete-modal').classList.remove('hidden');
+      },
+
+      closeDeleteModal() {
+        this.recordToDeleteId = null;
+        document.getElementById('admin-delete-modal').classList.add('hidden');
+      },
+
+      executeDelete() {
+        if (!this.recordToDeleteId) return;
+        const id = this.recordToDeleteId;
+        const recIndex = mockRotationRecords.findIndex(r => r.id === id);
+        if (recIndex === -1) {
+          this.closeDeleteModal();
+          return;
+        }
+
+        const target = mockRotationRecords[recIndex];
+        // 1. rotation_records에서 삭제
+        mockRotationRecords.splice(recIndex, 1);
+
+        // 2. 로그인 세션 또는 사용자 목록에서 삭제
+        if (currentUser && currentUser.name === target.name) {
+          currentUser = null;
+          document.getElementById('user-badge').classList.add('hidden');
+          document.getElementById('user-badge').classList.remove('flex');
+          showToast(`현재 접속 중인 [${target.name}] 교직원의 평정 기록 및 로그인 계정이 삭제되어 로그아웃되었습니다.`, 'warning');
+          ViewController.navigate('login');
+        } else {
+          showToast(`[${target.name} (${target.affiliation})] 교직원의 평정 데이터 및 로그인 계정 정보가 모두 삭제되었습니다.`, 'success');
+        }
+
+        if (this.selectedRecordId === id) {
+          this.selectedRecordId = null;
+          const btnDelete = document.getElementById('btn-admin-delete');
+          if (btnDelete) {
+            btnDelete.setAttribute('disabled', 'true');
+            btnDelete.className = "px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60";
+          }
+        }
+
+        this.closeDeleteModal();
+        this.renderAdminTable();
+      },
+
+      // [요구사항 핵심 3] 관리자 비밀번호 변경 팝업 모달 제어
+      openPasswordModal() {
+        document.getElementById('pw-current').value = '';
+        document.getElementById('pw-new').value = '';
+        document.getElementById('pw-new-confirm').value = '';
+        document.getElementById('pw-error-box').classList.add('hidden');
+        document.getElementById('pw-success-box').classList.add('hidden');
+        document.getElementById('admin-pw-modal').classList.remove('hidden');
+      },
+
+      closePasswordModal() {
+        document.getElementById('admin-pw-modal').classList.add('hidden');
+      },
+
+      submitChangePassword(e) {
+        e.preventDefault();
+        const curPw = document.getElementById('pw-current').value;
+        const newPw = document.getElementById('pw-new').value;
+        const confirmPw = document.getElementById('pw-new-confirm').value;
+        const errorBox = document.getElementById('pw-error-box');
+        const errorMsg = document.getElementById('pw-error-msg');
+        const successBox = document.getElementById('pw-success-box');
+        const successMsg = document.getElementById('pw-success-msg');
+
+        errorBox.classList.add('hidden');
+        successBox.classList.add('hidden');
+
+        const activeAdminPw = localStorage.getItem('admin_password') || '112233';
+
+        if (!curPw) {
+          errorMsg.textContent = '이전 비밀번호를 입력해 주세요.';
+          errorBox.classList.remove('hidden');
+          return;
+        }
+        if (curPw !== activeAdminPw) {
+          errorMsg.textContent = '이전 비밀번호가 일치하지 않습니다.';
+          errorBox.classList.remove('hidden');
+          return;
+        }
+        if (!newPw) {
+          errorMsg.textContent = '새로운 비밀번호를 입력해 주세요.';
+          errorBox.classList.remove('hidden');
+          return;
+        }
+        if (newPw.length < 4) {
+          errorMsg.textContent = '새로운 비밀번호는 4자 이상 입력해 주세요.';
+          errorBox.classList.remove('hidden');
+          return;
+        }
+        if (newPw !== confirmPw) {
+          errorMsg.textContent = '새로운 비밀번호와 확인 입력이 일치하지 않습니다. 2번 반복하여 정확히 입력해 주세요.';
+          errorBox.classList.remove('hidden');
+          return;
+        }
+
+        localStorage.setItem('admin_password', newPw);
+        successMsg.textContent = '관리자 비밀번호가 성공적으로 변경되었습니다!';
+        successBox.classList.remove('hidden');
+        showToast('관리자 비밀번호가 성공적으로 변경되었습니다.', 'success');
+
+        setTimeout(() => {
+          CareerScoreApp.closePasswordModal();
+        }, 1200);
+      },
+
+      renderAdminTable() {
+        const tbody = document.getElementById('admin-records-table-body');
+        if (!tbody) return;
+
+        const sorted = [...mockRotationRecords].sort((a, b) => b.scoreBreakdown.totalScore - a.scoreBreakdown.totalScore);
+
+        document.getElementById('admin-stat-records').textContent = `${sorted.length}건`;
+        if (sorted.length > 0) {
+          document.getElementById('admin-stat-top-score').textContent = `${sorted[0].scoreBreakdown.totalScore}점`;
+          const avg = (sorted.reduce((acc, cur) => acc + cur.scoreBreakdown.totalScore, 0) / sorted.length).toFixed(1);
+          document.getElementById('admin-stat-avg-score').textContent = `${avg}점`;
+          const priorityCount = sorted.filter(r => r.scoreBreakdown.totalScore >= 70).length;
+          document.getElementById('admin-stat-priority').textContent = `${priorityCount}명`;
+        } else {
+          document.getElementById('admin-stat-top-score').textContent = "0점";
+          document.getElementById('admin-stat-avg-score').textContent = "0점";
+          document.getElementById('admin-stat-priority').textContent = "0명";
+        }
+
+        if (sorted.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="8" class="px-5 py-8 text-center text-slate-400">
+                등록된 평정 기록이 없습니다.
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = sorted.map((rec, index) => {
+          const total = rec.scoreBreakdown.totalScore;
+          let scoreBadgeColor = "bg-slate-100 text-slate-700";
+          if (total >= 80) scoreBadgeColor = "bg-purple-100 text-purple-700 font-extrabold";
+          else if (total >= 65) scoreBadgeColor = "bg-emerald-100 text-emerald-700 font-bold";
+          else scoreBadgeColor = "bg-amber-100 text-amber-700";
+
+          const isChecked = this.selectedRecordId === rec.id;
+
+          return `
+            <tr class="hover:bg-slate-50/80 transition-colors ${isChecked ? 'bg-rose-50/60' : ''}">
+              <td class="px-3.5 py-3.5 text-center">
+                <input type="radio" name="adminRecordRadio" value="${rec.id}" ${isChecked ? 'checked' : ''} onchange="CareerScoreApp.handleSelectRecord('${rec.id}')" class="w-4 h-4 text-rose-600 cursor-pointer accent-rose-600" />
+              </td>
+              <td class="px-5 py-3.5 font-bold text-slate-500">${index + 1}위</td>
+              <td class="px-5 py-3.5">
+                <div class="font-bold text-slate-900">${rec.name}</div>
+                <div class="text-xs text-slate-400">${rec.affiliation}</div>
+              </td>
+              <td class="px-5 py-3.5 text-xs text-slate-600">
+                <div>만 ${rec.age}세 · 재직 ${formatYearMonthDisplay(rec.tenure)}</div>
+                <div class="text-[11px] text-slate-400">총경력 ${formatYearMonthDisplay(rec.totalExp)}</div>
+              </td>
+              <td class="px-5 py-3.5 text-xs">
+                <span class="text-brand-700 font-medium">나이 ${rec.scoreBreakdown.ageScore}</span> + 
+                <span class="text-indigo-700 font-medium">재직 ${rec.scoreBreakdown.tenureScore}</span> + 
+                <span class="text-purple-700 font-medium">경력 ${rec.scoreBreakdown.expScore}</span>
+              </td>
+              <td class="px-5 py-3.5 text-center">
+                <span class="px-3 py-1 rounded-full text-xs ${scoreBadgeColor}">
+                  ${total}점
+                </span>
+              </td>
+              <td class="px-5 py-3.5 text-xs text-slate-500 max-w-xs truncate" title="${rec.currentDuties}">
+                ${rec.currentDuties}
+              </td>
+              <td class="px-5 py-3.5 text-right">
+                <button onclick="CareerScoreApp.openDeleteModal('${rec.id}')" class="px-2.5 py-1 border border-rose-200 hover:border-rose-400 hover:bg-rose-50 bg-white rounded-lg text-rose-600 font-bold text-xs inline-flex items-center cursor-pointer transition">
+                  <svg class="w-3.5 h-3.5 mr-1 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  <span>삭제</span>
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    };
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      let bg = "bg-slate-900 text-white";
+      if (type === 'success') bg = "bg-emerald-600 text-white";
+      if (type === 'warning') bg = "bg-amber-600 text-white";
+      if (type === 'error') bg = "bg-rose-600 text-white";
+
+      toast.className = `${bg} px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all transform duration-300 translate-y-2 opacity-0 pointer-events-auto flex items-center space-x-2`;
+      toast.innerHTML = `
+        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>${message}</span>
+      `;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    window.ViewController = ViewController;
+    window.AuthService = AuthService;
+    window.CareerScoreApp = CareerScoreApp;
+    window.showToast = showToast;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      ViewController.init();
+      AuthService.updateLoginButtonState();
+    });
+  </script>
+</body>
+</html>
